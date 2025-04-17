@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Website</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.0.0-beta.9/dist/umd/supabase.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .chat-container {
+            width: 80%;
+            margin: 20px auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            height: 400px;
+            overflow-y: scroll;
+        }
+
+        .message {
+            margin: 10px 0;
+        }
+
+        .message img {
+            max-width: 100px;
+        }
+
+        .login-container {
+            text-align: center;
+            margin: 20px;
+        }
+
+        .emoji-button {
+            font-size: 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        .input-container {
+            display: flex;
+            margin-top: 10px;
+        }
+
+        .input-container input, .input-container textarea {
+            width: 80%;
+            padding: 5px;
+            margin-right: 10px;
+        }
+
+        .input-container button {
+            padding: 5px 10px;
+        }
+
+        .user-dropdown {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <select id="userDropdown" class="user-dropdown">
+            <option value="user1">User 1</option>
+            <option value="user2">User 2</option>
+            <option value="user3">User 3</option>
+            <!-- Add the rest of the users here -->
+        </select>
+        <input type="password" id="password" placeholder="Enter password">
+        <button onclick="signIn()">Sign In</button>
+        <button onclick="signOut()">Sign Out</button>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+        <!-- Messages will be displayed here -->
+    </div>
+
+    <div class="input-container">
+        <textarea id="messageInput" placeholder="Type your message"></textarea>
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <div>
+        <span class="emoji-button" onclick="insertEmoji('😊')">😊</span>
+        <span class="emoji-button" onclick="insertEmoji('😂')">😂</span>
+        <span class="emoji-button" onclick="insertEmoji('❤️')">❤️</span>
+        <!-- Add more emojis here -->
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://bdgtvpxwsqgptdrsfqvx.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZ3R2cHh3c3FncHRkcnNmcXZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5MjEzMTEsImV4cCI6MjA2MDQ5NzMxMX0.7RW44sRmsFvwSJrNidCxDJUHg2fn9cigVilq2dQgQpc';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+
+       async function signIn() {
+    const username = 'user1';  // Hardcode user1
+    const password = 'pass1';  // Hardcode password
+
+    console.log(`Trying to log in with username: ${username} and password: ${password}`);
+
+    const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password);
+
+    console.log('Supabase result:', { data, error });
+
+    if (error) {
+        alert("Supabase error: " + error.message);
+        return;
+    }
+
+    if (data.length > 0) {
+        currentUser = data[0];
+        alert(`Signed in as ${currentUser.username}`);
+        loadMessages();
+    } else {
+        alert('Invalid login credentials.');
+    }
+}
+
+
+        function signOut() {
+            currentUser = null;
+            alert('You have signed out.');
+            document.getElementById("chatContainer").innerHTML = '';
+        }
+
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput').value;
+
+            if (!currentUser) {
+                alert('Please sign in first.');
+                return;
+            }
+
+            if (messageInput.trim()) {
+                const { data, error } = await supabase
+                    .from('messages')
+                    .insert([{ user_id: currentUser.id, content: messageInput }]);
+
+                if (error) {
+                    console.error('Error sending message:', error);
+                } else {
+                    loadMessages();
+                    document.getElementById('messageInput').value = ''; // Clear input
+                }
+            }
+        }
+
+        async function loadMessages() {
+            const { data, error } = await supabase
+                .from('messages')
+                .select('user_id, content, created_at')
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                console.error('Error loading messages:', error);
+                return;
+            }
+
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.innerHTML = '';
+
+            data.forEach(message => {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+                messageDiv.innerHTML = `
+                    <strong>User ${message.user_id}</strong>: ${message.content} 
+                    <button onclick="editMessage(${message.id})">Edit</button>
+                    <button onclick="deleteMessage(${message.id})">Delete</button>
+                `;
+                chatContainer.appendChild(messageDiv);
+            });
+        }
+
+        async function editMessage(messageId) {
+            const newMessage = prompt('Edit your message:');
+            if (newMessage) {
+                const { data, error } = await supabase
+                    .from('messages')
+                    .update({ content: newMessage })
+                    .eq('id', messageId);
+
+                if (error) {
+                    console.error('Error editing message:', error);
+                } else {
+                    loadMessages();
+                }
+            }
+        }
+
+        async function deleteMessage(messageId) {
+            const { data, error } = await supabase
+                .from('messages')
+                .delete()
+                .eq('id', messageId);
+
+            if (error) {
+                console.error('Error deleting message:', error);
+            } else {
+                loadMessages();
+            }
+        }
+
+        function insertEmoji(emoji) {
+            const messageInput = document.getElementById('messageInput');
+            messageInput.value += emoji;
+        }
+    </script>
+</body>
+</html>
